@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}SmartSort AI{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/icon.svg') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   {% block head_extra %}{% endblock %}
 </head>
@@ -14,7 +13,17 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
       <div class="brand-icon">
-        <img src="{{ url_for('static', filename='assets/icon.svg') }}" width="32" height="32" alt="SmartSort AI icon" style="display:block;" />
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="url(#brandGrad)"/>
+          <path d="M8 11h16M8 16h10M8 21h13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="24" cy="21" r="3" fill="white" opacity="0.9"/>
+          <defs>
+            <linearGradient id="brandGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
       <div class="brand-text">
         <span class="brand-name">SmartSort AI</span>
