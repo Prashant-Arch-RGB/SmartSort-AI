@@ -1,0 +1,601 @@
+{% extends "base.html" %}
+{% block title %}Preview &amp; Organize — SmartSort AI{% endblock %}
+
+{% block content %}
+<div class="page-single">
+
+  <!-- Page header -->
+  <div class="page-header-bar">
+    <div class="pheader-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+        <circle cx="12" cy="12" r="3"/>
+      </svg>
+    </div>
+    <div>
+      <h2 class="pheader-title">Preview &amp; Organize</h2>
+      <p class="pheader-sub">Review the scan results, filter your files, and create an organization plan.</p>
+    </div>
+  </div>
+
+  {% if not records %}
+  <!-- No scan results state -->
+  <div class="card mt-4">
+    <div class="empty-page-state">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <h3>No Scan Results</h3>
+      <p>Please run a scan first to see your files here.</p>
+      <a href="{{ url_for('scan_page') }}" class="btn btn-primary">Go to Scan</a>
+    </div>
+  </div>
+
+  {% else %}
+
+  <!-- Destination + filters row -->
+  <div class="card mt-4">
+    <div class="filters-bar">
+      <!-- Destination folder -->
+      <div class="dest-folder-group">
+        <div class="form-section-header small">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+          </svg>
+          <span>Select Destination Folder</span>
+        </div>
+        <div class="folder-input-row">
+          <input type="text" id="destFolder" class="form-input"
+                 value="{{ dest_folder }}"
+                 placeholder="e.g. C:\Users\YourName\Organized Files" />
+          <button class="btn btn-primary btn-sm" onclick="openFolderModalForDest()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+            </svg>
+            Browse
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-group-row">
+        <div class="filter-label-row">
+          <span class="filter-section-title">Filter Results</span>
+          <span class="filter-hint">(Multi-select)</span>
+        </div>
+        <div class="filter-controls">
+          <!-- Categories filter -->
+          <div class="filter-control">
+            <div class="filter-control-label">Categories</div>
+            <div class="multi-select-wrapper" id="catFilterWrapper">
+              <div class="multi-select-tags" id="catFilterTags" onclick="toggleDropdown('catDropdown')">
+                <span class="tag-placeholder">All categories</span>
+              </div>
+              <button class="dropdown-arrow" onclick="toggleDropdown('catDropdown')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="dropdown-panel" id="catDropdown" style="display:none;">
+                <label class="dropdown-item"><input type="checkbox" value="__all__" onchange="selectAllFilter('cat', this)"> Select all</label>
+                {% for cat in all_categories %}
+                <label class="dropdown-item"><input type="checkbox" class="cat-filter-cb" value="{{ cat }}" onchange="updateFilter('cat')"> {{ cat }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Types filter -->
+          <div class="filter-control">
+            <div class="filter-control-label">Types</div>
+            <div class="multi-select-wrapper" id="typeFilterWrapper">
+              <div class="multi-select-tags" id="typeFilterTags" onclick="toggleDropdown('typeDropdown')">
+                <span class="tag-placeholder">All types</span>
+              </div>
+              <button class="dropdown-arrow" onclick="toggleDropdown('typeDropdown')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="dropdown-panel" id="typeDropdown" style="display:none;">
+                <label class="dropdown-item"><input type="checkbox" value="__all__" onchange="selectAllFilter('type', this)"> Select all</label>
+                {% for ext in all_extensions %}
+                <label class="dropdown-item"><input type="checkbox" class="type-filter-cb" value="{{ ext }}" onchange="updateFilter('type')"> {{ ext }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Confidence filter -->
+          <div class="filter-control">
+            <div class="filter-control-label">Confidence Threshold</div>
+            <select class="form-select" id="confFilter" onchange="applyFilters()">
+              <option value="all">All files</option>
+              <option value="high">High (≥80%)</option>
+              <option value="medium" selected>Medium (≥70%)</option>
+              <option value="low">Low (≥55%)</option>
+              <option value="review">Needs Review (&lt;55%)</option>
+            </select>
+            <p class="filter-hint-text">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Only files with confidence equal to or above the selected value will be shown.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview Results table -->
+  <div class="card mt-3" id="previewTableCard">
+    <div class="card-header">
+      <div class="card-header-left">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/>
+          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+        <span>Preview Results</span>
+        <span class="table-count" id="tableCountLabel">{{ records|length }} files found</span>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="data-table" id="previewTable">
+        <thead>
+          <tr>
+            <th width="36px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+            <th>Filename</th>
+            <th>Size</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>Conf%</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="previewTableBody">
+          {% for r in records %}
+          <tr class="file-row"
+              data-filepath="{{ r.filepath }}"
+              data-category="{{ r.category }}"
+              data-extension="{{ r.extension }}"
+              data-confidence="{{ r.confidence }}">
+            <td><input type="checkbox" class="row-select" value="{{ r.filepath }}" checked></td>
+            <td class="filename-cell">
+              <div class="file-cell">
+                <div class="file-ext-badge ext-{{ r.extension|replace('.','') }}">{{ r.extension[1:]|upper if r.extension else '?' }}</div>
+                <span class="file-name">{{ r.filename }}</span>
+              </div>
+            </td>
+            <td>{{ r.size }}</td>
+            <td class="mono">{{ r.extension }}</td>
+            <td>
+              <span class="category-badge cat-{{ r.category|lower|replace(' ','_') }}">
+                {{ r.category }}
+              </span>
+            </td>
+            <td class="conf-cell">
+              <span class="conf-value {% if r.confidence >= 80 %}conf-high{% elif r.confidence >= 55 %}conf-medium{% else %}conf-low{% endif %}">
+                {{ r.confidence|int }}%
+              </span>
+            </td>
+            <td class="reason-cell" title="{{ r.reason }}">{{ r.reason[:60] }}{% if r.reason|length > 60 %}…{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Action buttons row -->
+  <div class="action-buttons-row mt-3">
+    <button class="btn btn-primary btn-action" onclick="previewPlan()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+      Preview Plan
+    </button>
+    <button class="btn btn-secondary btn-action" onclick="organizeSelected()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+      </svg>
+      Organize Selected (<span id="selectedCount">{{ records|length }}</span>)
+    </button>
+    <button class="btn btn-secondary btn-action" onclick="organizeAll()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+      Organize All (<span id="totalCount">{{ records|length }}</span>)
+    </button>
+  </div>
+
+  <!-- Organize progress/result -->
+  <div id="organizeStatus" style="display:none;" class="mt-3"></div>
+
+  <!-- Bottom section: Organization Plan + Correction Panel -->
+  <div class="page-grid-two mt-4">
+
+    <!-- Organization Plan -->
+    <div class="card" id="planCard" style="display:none;">
+      <div class="card-header">
+        <div class="card-header-left">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+          </svg>
+          <span>Organization Plan</span>
+        </div>
+      </div>
+      <p class="card-subtitle">Here's how your files will be organized based on the current filters and settings.</p>
+
+      <!-- Plan view tabs -->
+      <div class="plan-tabs">
+        <button class="plan-tab active" onclick="switchPlanTab('filename', this)">Filename</button>
+        <button class="plan-tab" onclick="switchPlanTab('category', this)">Category</button>
+        <button class="plan-tab" onclick="switchPlanTab('destination', this)">Destination</button>
+      </div>
+
+      <div class="table-wrapper" id="planTableWrapper">
+        <table class="data-table" id="planTable">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Category</th>
+              <th>Destination Folder</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="planTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Plan pagination -->
+      <div class="pagination-bar" id="planPagination">
+        <span class="page-info" id="planPageInfo">1–4 of 0</span>
+        <div class="page-controls">
+          <button class="page-btn" onclick="planPrevPage()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span id="planPageBtns"></span>
+          <button class="page-btn" onclick="planNextPage()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Correction Panel -->
+    <div class="card correction-panel">
+      <div class="card-header">
+        <div class="card-header-left">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          <span>Correction Panel</span>
+        </div>
+      </div>
+      <p class="card-subtitle">If a file is miscategorized, select it and update the category.</p>
+
+      <div class="form-group">
+        <label class="form-label">Select File</label>
+        <select class="form-select" id="correctionFile">
+          <option value="">— Select a file —</option>
+          {% for r in records %}
+          <option value="{{ r.filepath }}">{{ r.filename }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group mt-3">
+        <label class="form-label">Correct Category</label>
+        <div class="correction-select-wrapper">
+          <div class="correction-cat-preview" id="correctionCatPreview">
+            <div class="feature-icon feature-icon-blue">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+            </div>
+            <span id="correctionCatLabel">Images</span>
+          </div>
+          <select class="form-select" id="correctionCategory" onchange="updateCorrectionPreview()">
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if cat == 'Images' %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-block mt-4" onclick="saveCorrection()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save Correction
+      </button>
+    </div>
+
+  </div><!-- /page-grid-two -->
+
+  {% endif %}
+
+</div><!-- /page-single -->
+
+<script>
+// Embed records data for client-side filtering
+var ALL_RECORDS = {{ records | tojson | safe }};
+var filteredRecords = ALL_RECORDS.slice();
+
+// Plan data
+var planData = [];
+var planPage = 1;
+var planPageSize = 4;
+
+function updateSelectedCount() {
+  var checked = document.querySelectorAll('.row-select:checked');
+  document.getElementById('selectedCount').textContent = checked.length;
+  document.getElementById('totalCount').textContent =
+    document.querySelectorAll('.row-select').length;
+}
+
+// Initial count
+document.addEventListener('DOMContentLoaded', function() {
+  updateSelectedCount();
+  updateCorrectionPreview();
+});
+
+function toggleSelectAll(cb) {
+  document.querySelectorAll('.row-select').forEach(function(el) {
+    el.checked = cb.checked;
+  });
+  updateSelectedCount();
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target && e.target.classList.contains('row-select')) {
+    updateSelectedCount();
+    var all = document.querySelectorAll('.row-select');
+    var checked = document.querySelectorAll('.row-select:checked');
+    document.getElementById('selectAll').checked = all.length === checked.length;
+  }
+});
+
+function openFolderModalForDest() {
+  browseFolder(function(path) {
+    document.getElementById('destFolder').value = path;
+  });
+}
+
+function getSelectedFilepaths() {
+  var checked = document.querySelectorAll('.row-select:checked');
+  return Array.from(checked).map(function(cb) { return cb.value; });
+}
+
+function organizeSelected() {
+  var selected = getSelectedFilepaths();
+  if (!selected.length) { showToast('No files selected.', 'warning'); return; }
+  callOrganize(selected, true);
+}
+
+function organizeAll() {
+  var all = Array.from(document.querySelectorAll('.row-select')).map(function(cb) { return cb.value; });
+  callOrganize(all, true);
+}
+
+function previewPlan() {
+  var selected = getSelectedFilepaths();
+  if (!selected.length) { showToast('No files selected.', 'warning'); return; }
+  callOrganize(selected, false);
+}
+
+function callOrganize(filepaths, execute) {
+  var dest = document.getElementById('destFolder').value.trim();
+  if (!dest) { showToast('Please enter a destination folder.', 'error'); return; }
+
+  var statusEl = document.getElementById('organizeStatus');
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = '<div class="info-banner"><span class="spinner-sm"></span> ' + (execute ? 'Organizing...' : 'Generating plan...') + '</div>';
+
+  fetch('/api/organize', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ dest_folder: dest, selected: filepaths, execute: execute, dry_run: false })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      statusEl.innerHTML = '<div class="error-banner">' + data.error + '</div>';
+      return;
+    }
+    if (execute) {
+      statusEl.innerHTML = '<div class="success-banner">✓ Done: ' + data.moved + ' moved, ' + data.skipped + ' skipped, ' + data.failed + ' failed.</div>';
+    } else {
+      statusEl.innerHTML = '<div class="info-banner">Plan ready: ' + data.total + ' files planned.</div>';
+    }
+    // Display plan
+    planData = data.plan || [];
+    planPage = 1;
+    renderPlanTable();
+    document.getElementById('planCard').style.display = 'block';
+    document.getElementById('planCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+  })
+  .catch(function(err) {
+    statusEl.innerHTML = '<div class="error-banner">Request failed: ' + err + '</div>';
+  });
+}
+
+function renderPlanTable() {
+  var tbody = document.getElementById('planTableBody');
+  var start = (planPage - 1) * planPageSize;
+  var slice = planData.slice(start, start + planPageSize);
+  var html = '';
+  slice.forEach(function(p) {
+    var parts = p.dst.replace(/\\/g, '/').split('/');
+    var shortDest = parts.length > 2 ? 'C:\\...\\' + parts.slice(-2, -1).join('\\') : p.dst;
+    html += '<tr>';
+    html += '<td class="filename-cell"><div class="file-cell"><span class="file-name">' + p.filename + '</span></div></td>';
+    html += '<td><span class="category-badge cat-' + p.category.toLowerCase().replace(/ /g,'_') + '">' + p.category + '</span></td>';
+    html += '<td class="mono">' + shortDest + '</td>';
+    html += '<td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+
+  // Update pagination
+  var total = planData.length;
+  var pageCount = Math.ceil(total / planPageSize);
+  document.getElementById('planPageInfo').textContent =
+    (start + 1) + '–' + Math.min(start + planPageSize, total) + ' of ' + total;
+
+  var btns = '';
+  for (var i = 1; i <= Math.min(pageCount, 5); i++) {
+    btns += '<button class="page-num-btn ' + (i === planPage ? 'active' : '') + '" onclick="goPlanPage(' + i + ')">' + i + '</button>';
+  }
+  document.getElementById('planPageBtns').innerHTML = btns;
+}
+
+function goPlanPage(n) { planPage = n; renderPlanTable(); }
+function planPrevPage() { if (planPage > 1) { planPage--; renderPlanTable(); } }
+function planNextPage() {
+  if (planPage < Math.ceil(planData.length / planPageSize)) { planPage++; renderPlanTable(); }
+}
+
+function switchPlanTab(tab, el) {
+  document.querySelectorAll('.plan-tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+}
+
+function saveCorrection() {
+  var filepath = document.getElementById('correctionFile').value;
+  var category = document.getElementById('correctionCategory').value;
+  if (!filepath) { showToast('Please select a file.', 'warning'); return; }
+
+  fetch('/api/correction', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ filepath: filepath, category: category })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) { showToast(data.error, 'error'); return; }
+    showToast('Correction saved: ' + category, 'success');
+    // Update table row category badge
+    var row = document.querySelector('.file-row[data-filepath="' + CSS.escape(filepath) + '"]');
+    if (row) {
+      var badge = row.querySelector('.category-badge');
+      if (badge) {
+        badge.className = 'category-badge cat-' + category.toLowerCase().replace(/ /g,'_');
+        badge.textContent = category;
+      }
+    }
+  })
+  .catch(function(e) { showToast('Failed: ' + e, 'error'); });
+}
+
+function updateCorrectionPreview() {
+  var cat = document.getElementById('correctionCategory').value;
+  document.getElementById('correctionCatLabel').textContent = cat;
+}
+
+// ── Filters ─────────────────────────────────────────────
+
+var activeCatFilters = [];
+var activeTypeFilters = [];
+
+function toggleDropdown(id) {
+  var panel = document.getElementById(id);
+  var isVisible = panel.style.display !== 'none';
+  // Close all
+  document.querySelectorAll('.dropdown-panel').forEach(function(p) { p.style.display = 'none'; });
+  if (!isVisible) panel.style.display = 'block';
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.multi-select-wrapper')) {
+    document.querySelectorAll('.dropdown-panel').forEach(function(p) { p.style.display = 'none'; });
+  }
+});
+
+function selectAllFilter(type, cb) {
+  var cls = type === 'cat' ? '.cat-filter-cb' : '.type-filter-cb';
+  document.querySelectorAll(cls).forEach(function(el) { el.checked = cb.checked; });
+  updateFilter(type);
+}
+
+function updateFilter(type) {
+  if (type === 'cat') {
+    activeCatFilters = Array.from(document.querySelectorAll('.cat-filter-cb:checked')).map(function(cb) { return cb.value; });
+    renderCatTags();
+  } else {
+    activeTypeFilters = Array.from(document.querySelectorAll('.type-filter-cb:checked')).map(function(cb) { return cb.value; });
+    renderTypeTags();
+  }
+  applyFilters();
+}
+
+function renderCatTags() {
+  var el = document.getElementById('catFilterTags');
+  if (!activeCatFilters.length) {
+    el.innerHTML = '<span class="tag-placeholder">All categories</span>';
+  } else {
+    el.innerHTML = activeCatFilters.map(function(c) {
+      return '<span class="filter-tag">' + c + '<span class="tag-remove" onclick="removeCatFilter(\'' + c + '\')">×</span></span>';
+    }).join('');
+  }
+}
+
+function renderTypeTags() {
+  var el = document.getElementById('typeFilterTags');
+  if (!activeTypeFilters.length) {
+    el.innerHTML = '<span class="tag-placeholder">All types</span>';
+  } else {
+    el.innerHTML = activeTypeFilters.map(function(t) {
+      return '<span class="filter-tag filter-tag-type">' + t + '<span class="tag-remove" onclick="removeTypeFilter(\'' + t + '\')">×</span></span>';
+    }).join('');
+  }
+}
+
+function removeCatFilter(cat) {
+  activeCatFilters = activeCatFilters.filter(function(c) { return c !== cat; });
+  document.querySelectorAll('.cat-filter-cb').forEach(function(cb) {
+    if (cb.value === cat) cb.checked = false;
+  });
+  renderCatTags();
+  applyFilters();
+}
+
+function removeTypeFilter(type) {
+  activeTypeFilters = activeTypeFilters.filter(function(t) { return t !== type; });
+  document.querySelectorAll('.type-filter-cb').forEach(function(cb) {
+    if (cb.value === type) cb.checked = false;
+  });
+  renderTypeTags();
+  applyFilters();
+}
+
+function applyFilters() {
+  var confFilter = document.getElementById('confFilter').value;
+  var rows = document.querySelectorAll('.file-row');
+  var visible = 0;
+
+  rows.forEach(function(row) {
+    var cat = row.dataset.category;
+    var ext = row.dataset.extension;
+    var conf = parseFloat(row.dataset.confidence);
+
+    var catOk = !activeCatFilters.length || activeCatFilters.includes(cat);
+    var typeOk = !activeTypeFilters.length || activeTypeFilters.includes(ext);
+
+    var confOk = true;
+    if (confFilter === 'high') confOk = conf >= 80;
+    else if (confFilter === 'medium') confOk = conf >= 70;
+    else if (confFilter === 'low') confOk = conf >= 55;
+    else if (confFilter === 'review') confOk = conf < 55;
+
+    row.style.display = (catOk && typeOk && confOk) ? '' : 'none';
+    if (catOk && typeOk && confOk) visible++;
+  });
+
+  document.getElementById('tableCountLabel').textContent = visible + ' files found';
+  document.getElementById('totalCount').textContent = visible;
+  updateSelectedCount();
+}
+</script>
+{% endblock %}

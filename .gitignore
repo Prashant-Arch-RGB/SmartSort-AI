@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables
+.env
+*.env
+
+# pytest / test cache
+.pytest_cache/
+.cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# SQLite databases and WAL files
+*.db
+*.db-shm
+*.db-wal
+
+# Log files
+*.log
+
+# Model artifacts (large binary -- regenerate with scripts/train_model.py)
+models/*.joblib
+models/*.pkl
+
+# Streamlit legacy
+app_streamlit.py
+
+# Flask session secret key (auto-generated, local only)
+.secret_key

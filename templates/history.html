@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+{% block title %}History &amp; Undo — SmartSort AI{% endblock %}
+
+{% block content %}
+<div class="page-grid page-grid-history">
+
+  <!-- ── Main column ───────────────────────────────────────── -->
+  <div class="col-main">
+
+    <!-- Page header -->
+    <div class="page-header-bar">
+      <div class="pheader-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="pheader-title">History &amp; Undo</h2>
+        <p class="pheader-sub">View your past operations, restore changes, or undo recent actions.</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar mt-4">
+      <button class="tab-btn active" id="tabHistoryBtn" onclick="switchTab('history')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Operation History
+      </button>
+      <button class="tab-btn" id="tabUndoBtn" onclick="switchTab('undo')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+        </svg>
+        Undo / Restore
+      </button>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="history-filters mt-3" id="historyFilters">
+      <div class="filter-pill-select">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <select class="filter-select-naked" id="timeFilter" onchange="filterHistory()">
+          <option value="all">All time</option>
+          <option value="7" selected>Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <div class="filter-pill-select">
+        <select class="filter-select-naked" id="typeFilter" onchange="filterHistory()">
+          <option value="all">All Operations</option>
+          <option value="done">Completed</option>
+          <option value="running">Running</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+      <div class="search-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="historySearch" placeholder="Search history..." oninput="filterHistory()" />
+      </div>
+    </div>
+
+    <!-- History tab content -->
+    <div id="tabHistory" class="tab-content active">
+      <div class="card mt-3">
+        <div class="table-wrapper">
+          <table class="data-table" id="historyTable">
+            <thead>
+              <tr>
+                <th width="32px"><input type="checkbox" id="histSelectAll"></th>
+                <th>Date &amp; Time</th>
+                <th>Operation</th>
+                <th>Files Affected</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if history_rows %}
+                {% for row in history_rows %}
+                <tr class="history-row" data-batch-id="{{ row.batch_id }}" data-status="{{ row.status }}"
+                    data-folder="{{ row.folder_full }}" onclick="selectHistoryRow(this)">
+                  <td onclick="event.stopPropagation()"><input type="checkbox" class="row-select-hist"></td>
+                  <td class="date-cell">{{ row.date }}</td>
+                  <td>
+                    <div class="op-cell">
+                      <div class="op-icon {% if row.status == 'done' %}op-icon-blue{% else %}op-icon-orange{% endif %}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div class="op-name">{{ 'Organize' if not row.dry_run else 'Dry Run' }}</div>
+                        <div class="op-desc">{{ row.folder }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ row.files_affected }} files</td>
+                  <td>
+                    {% if row.status == 'done' %}
+                    <span class="badge badge-success">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      Completed
+                    </span>
+                    {% elif row.status == 'running' %}
+                    <span class="badge badge-warning">⚙ Running</span>
+                    {% else %}
+                    <span class="badge badge-info">{{ row.status }}</span>
+                    {% endif %}
+                  </td>
+                  <td onclick="event.stopPropagation()">
+                    <div class="action-cell">
+                      <button class="btn btn-sm btn-ghost" onclick="showUndoForBatch({{ row.batch_id }})">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="1 4 1 10 7 10"/>
+                          <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+                        </svg>
+                        Undo
+                      </button>
+                      <button class="btn-icon-only" onclick="toggleRowMenu(this)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+              <tr>
+                <td colspan="6" class="empty-state-cell">
+                  <div class="empty-state">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+                      <polyline points="1 4 1 10 7 10"/>
+                      <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+                    </svg>
+                    <p>No operations recorded yet.</p>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-bar">
+          <span class="page-info">Showing 1–{{ history_rows|length }} of {{ total_items }} history items</span>
+          <div class="page-controls">
+            <button class="page-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="page-num-btn active">1</button>
+            <button class="page-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Undo tab content -->
+    <div id="tabUndo" class="tab-content" style="display:none;">
+      <div class="card mt-3">
+        <div class="card-body-pad">
+          <div class="info-banner mb-3">
+            Undo moves the file back to its original location. If the original location is occupied, provide an alternative path below.
+          </div>
+
+          {% if undo_rows %}
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Op ID</th>
+                  <th>Filename</th>
+                  <th>Moved From</th>
+                  <th>Moved To</th>
+                  <th>Executed</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in undo_rows %}
+                <tr>
+                  <td class="mono">{{ row.op_id }}</td>
+                  <td>{{ row.filename }}</td>
+                  <td class="path-cell" title="{{ row.moved_from }}">{{ row.moved_from }}</td>
+                  <td class="path-cell" title="{{ row.moved_to }}">{{ row.moved_to }}</td>
+                  <td>{{ row.executed }}</td>
+                  <td>
+                    <button class="btn btn-sm btn-primary" onclick="undoOperation({{ row.op_id }})">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="1 4 1 10 7 10"/>
+                        <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+                      </svg>
+                      Undo
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty-state mt-4">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+              <polyline points="1 4 1 10 7 10"/>
+              <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
+            </svg>
+            <p>No undoable operations found.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /col-main -->
+
+  <!-- ── Right panel: Operation Details ─────────────────────── -->
+  <div class="col-aside">
+    <div class="card" id="opDetailCard">
+      <div class="card-header-simple">
+        <span class="op-detail-title">Operation Details</span>
+      </div>
+      <div id="opDetailContent" class="card-body-pad">
+        <div class="empty-state py-8">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.3">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+          </svg>
+          <p>Select an operation from the list to see details.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-grid -->
+
+<script>
+var historyData = {{ history_rows | tojson | safe }};
+
+function switchTab(tab) {
+  document.getElementById('tabHistory').style.display = tab === 'history' ? '' : 'none';
+  document.getElementById('tabUndo').style.display = tab === 'undo' ? '' : 'none';
+  document.getElementById('tabHistoryBtn').classList.toggle('active', tab === 'history');
+  document.getElementById('tabUndoBtn').classList.toggle('active', tab === 'undo');
+  document.getElementById('historyFilters').style.display = tab === 'history' ? '' : 'none';
+}
+
+function filterHistory() {
+  var search = document.getElementById('historySearch').value.toLowerCase();
+  var typeVal = document.getElementById('typeFilter').value;
+  var rows = document.querySelectorAll('.history-row');
+  rows.forEach(function(row) {
+    var status = row.dataset.status;
+    var folder = (row.dataset.folder || '').toLowerCase();
+    var typeOk = typeVal === 'all' || status === typeVal;
+    var searchOk = !search || folder.includes(search);
+    row.style.display = typeOk && searchOk ? '' : 'none';
+  });
+}
+
+function selectHistoryRow(row) {
+  document.querySelectorAll('.history-row').forEach(function(r) { r.classList.remove('selected'); });
+  row.classList.add('selected');
+  var batchId = row.dataset.batchId;
+  loadBatchDetail(batchId, row);
+}
+
+function loadBatchDetail(batchId, row) {
+  var folder = row.dataset.folder;
+  var status = row.dataset.status;
+  var date = row.querySelector('.date-cell').textContent.trim();
+
+  // Find from our data
+  var item = historyData.find(function(d) { return String(d.batch_id) === String(batchId); });
+
+  var html = '';
+  if (item) {
+    html += '<div class="op-detail-header">';
+    html += '<div class="op-detail-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>';
+    html += '<div><div class="op-detail-name">Organize</div><div class="op-detail-date">' + date + '</div></div>';
+    html += '</div>';
+    html += '<div class="badge badge-success mt-2"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Completed</div>';
+    html += '<div class="detail-section mt-3"><div class="detail-label">Description</div><div class="detail-value">Moved ' + item.files_affected + ' files to category folders using AI.</div></div>';
+    html += '<div class="detail-section"><div class="detail-label">Files Affected</div><div class="detail-value">' + item.files_affected + ' files</div></div>';
+    html += '<div class="detail-section"><div class="detail-label">Settings Used</div><div class="detail-value">Confidence Threshold: Medium (70%)<br>Categories: All<br>Types: All</div></div>';
+  }
+
+  html += '<div class="detail-divider mt-3"></div>';
+  html += '<div class="detail-section mt-3">';
+  html += '<div class="detail-undo-header"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 101.85-4.36L1 10"/></svg><strong>Undo This Operation</strong></div>';
+  html += '<p class="detail-sub">This will revert the last organization changes and move the files back to their original locations.</p>';
+  html += '</div>';
+  html += '<button class="btn btn-primary btn-block mt-2" onclick="showUndoForBatch(' + batchId + ')">';
+  html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 101.85-4.36L1 10"/></svg> Undo Operation</button>';
+
+  html += '<div class="detail-divider mt-3"></div>';
+  html += '<div class="detail-section mt-3">';
+  html += '<div class="detail-undo-header"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 101.85-4.36L1 10"/></svg><strong>Restore Deleted Files (if any)</strong></div>';
+  html += '<p class="detail-sub">If files were deleted in this operation, you can restore them from the recycle bin.</p>';
+  html += '</div>';
+  html += '<button class="btn btn-secondary btn-block mt-2">';
+  html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> Restore Files</button>';
+
+  document.getElementById('opDetailContent').innerHTML = html;
+}
+
+function showUndoForBatch(batchId) {
+  switchTab('undo');
+  showToast('Undo view for batch #' + batchId, 'info');
+}
+
+function undoOperation(opId) {
+  if (!confirm('Undo operation #' + opId + '? The file will be moved back to its original location.')) return;
+
+  fetch('/api/undo', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ op_id: opId })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) { showToast(data.error, 'error'); return; }
+    showToast(data.message, 'success');
+    setTimeout(function() { location.reload(); }, 1200);
+  })
+  .catch(function(e) { showToast('Failed: ' + e, 'error'); });
+}
+
+function toggleRowMenu(btn) {
+  showToast('More options coming soon.', 'info');
+}
+</script>
+{% endblock %}
