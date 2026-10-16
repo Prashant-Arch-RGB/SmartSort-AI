@@ -4,6 +4,7 @@ src/config.py — Application configuration, category definitions, and settings 
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -115,3 +116,45 @@ def save_setting(conn, key: str, value: str) -> None:
 def get_category_for_extension(ext: str) -> Optional[str]:
     """Return the default category for a file extension, or None."""
     return EXTENSION_MAP.get(ext.lower())
+
+
+def resolve_category(ext: str,
+                     custom_ext_map: Optional[Dict[str, str]] = None) -> str:
+    """
+    Return the category for *ext*, applying a two-level priority:
+
+    1. Custom rules (``custom_ext_map``) — user-defined, highest priority.
+    2. Built-in ``EXTENSION_MAP`` — default rules.
+    3. Fallback: ``"Other"``.
+
+    Parameters
+    ----------
+    ext:            File extension including the leading dot, e.g. ``".pdf"``.
+                    Case is ignored.
+    custom_ext_map: Dict returned by ``database.get_custom_ext_map(conn)``.
+                    Pass ``None`` or ``{}`` to skip custom lookup.
+    """
+    key = ext.strip().lower()
+    if not key.startswith("."):
+        key = "." + key
+
+    # 1. Custom rules take priority
+    if custom_ext_map:
+        if key in custom_ext_map:
+            return custom_ext_map[key]
+
+    # 2. Built-in rules
+    default = EXTENSION_MAP.get(key)
+    if default:
+        return default
+
+    # 3. Fallback
+    return "Other"
+
+
+def sanitize_category_name(name: str) -> str:
+    """Strip characters that are illegal in folder names on Windows and Linux."""
+    name = name.strip()
+    name = re.sub(r'[/\\:*?"<>|]', "", name)
+    name = re.sub(r"^[.\s]+", "", name)
+    return name[:64] or "Custom"

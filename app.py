@@ -147,11 +147,14 @@ def records_from_session() -> List[Any]:
 
 @app.context_processor
 def inject_globals():
+    from src.database import get_custom_categories
     conn = get_db()
     settings = load_settings(conn)
+    custom_names = [c["name"] for c in get_custom_categories(conn)]
+    all_categories = DEFAULT_CATEGORIES + [c for c in custom_names if c not in DEFAULT_CATEGORIES]
     return {
         "settings": settings,
-        "categories": DEFAULT_CATEGORIES,
+        "categories": all_categories,
         "scan_done": session.get("scan_done", False),
         "scan_count": len(get_session_records()),
         "selected_folder": session.get("selected_folder", ""),
@@ -291,13 +294,28 @@ def history_page():
     hist_df = get_history_dataframe(conn)
     undo_df = get_undoable_dataframe(conn)
 
+    # Collect batch IDs that are fully undone (all moved ops have undone=1)
+    fully_undone_batches = set()
+    rows_check = conn.execute(
+        """SELECT batch_id
+           FROM file_operations
+           WHERE status = 'moved'
+           GROUP BY batch_id
+           HAVING COUNT(*) = SUM(undone)"""
+    ).fetchall()
+    for r in rows_check:
+        fully_undone_batches.add(r["batch_id"])
+
     history_rows = []
     if not hist_df.empty:
         for _, row in hist_df.iterrows():
+            batch_id = row.get("Batch ID", 0)
+            if batch_id in fully_undone_batches:
+                continue
             folder_name = Path(row.get("Folder", "—")).name if row.get("Folder", "—") != "—" else "—"
             status = row.get("Status", "")
             history_rows.append({
-                "batch_id": row.get("Batch ID", 0),
+                "batch_id": batch_id,
                 "date": row.get("Date", ""),
                 "folder": folder_name,
                 "folder_full": row.get("Folder", "—"),
@@ -504,8 +522,13 @@ def api_organize():
     conn = get_db()
     session_id = session.get("scan_session_id")
 
+    # Load custom extension rules so they take effect for this organize run
+    from src.database import get_custom_ext_map
+    custom_ext_map = get_custom_ext_map(conn)
+
     try:
-        proposals = generate_plan(records, dest_root, source_root, overrides)
+        proposals = generate_plan(records, dest_root, source_root,
+                                  overrides, custom_ext_map)
     except Exception as exc:
         return jsonify({"error": f"Plan generation failed: {exc}"}), 500
 
@@ -660,6 +683,8 @@ def api_clear_history():
     try:
         conn.execute("DELETE FROM file_operations")
         conn.execute("DELETE FROM operation_batches")
+        # Reset autoincrement counters so IDs restart from 1
+        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('file_operations', 'operation_batches')")
         conn.commit()
         return jsonify({"success": True, "message": "History cleared."})
     except Exception as exc:
@@ -676,7 +701,18 @@ def api_batch_detail(batch_id: int):
     if df.empty:
         return jsonify({"ops": []})
 
-    ops = df.to_dict(orient="records")
+    ops = []
+    for _, row in df.iterrows():
+        ops.append({
+            "op_id": row.get("Op ID"),
+            "filename": row.get("Filename", ""),
+            "category": row.get("Category", ""),
+            "from": row.get("From", ""),
+            "to": row.get("To", ""),
+            "status": row.get("Status", ""),
+            "executed": row.get("Executed", ""),
+            "undone": bool(row.get("Undone", False)),
+        })
     return jsonify({"ops": ops})
 
 
@@ -747,6 +783,105 @@ def api_browse_folder():
     except Exception as exc:
         logger.warning("Folder dialog failed: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+
+# ===========================================================================
+# Custom-category API
+# ===========================================================================
+
+@app.route("/api/categories", methods=["GET"])
+def api_list_categories():
+    """Return all custom categories with their mapped extensions."""
+    from src.database import get_custom_categories
+    conn = get_db()
+    cats = get_custom_categories(conn)
+    return jsonify({"categories": cats})
+
+
+@app.route("/api/categories", methods=["POST"])
+def api_add_category():
+    """Create a custom category.  Body: {name, color?}"""
+    import sqlite3 as _sqlite3
+    from src.database import add_custom_category
+    from src.config import sanitize_category_name
+
+    data = request.get_json() or {}
+    raw  = data.get("name", "").strip()
+    color = data.get("color", "#6366f1").strip()
+
+    name = sanitize_category_name(raw)
+    if not name:
+        return jsonify({"error": "Category name is required."}), 400
+    if name in DEFAULT_CATEGORIES:
+        return jsonify({"error": f"'{name}' is already a built-in category."}), 409
+
+    conn = get_db()
+    try:
+        new_id = add_custom_category(conn, name, color)
+    except _sqlite3.IntegrityError:
+        return jsonify({"error": f"Category '{name}' already exists."}), 409
+
+    return jsonify({"success": True, "id": new_id, "name": name, "color": color})
+
+
+@app.route("/api/categories/<string:name>", methods=["PUT"])
+def api_update_category(name: str):
+    """Update a custom category's name, color, and/or extensions.
+
+    Body: {new_name?, color?, extensions?: [".ext", ...]}
+    """
+    import sqlite3 as _sqlite3
+    from src.database import (rename_custom_category, delete_custom_category,
+                               add_custom_category, set_extensions_for_category,
+                               get_custom_categories)
+    from src.config import sanitize_category_name
+
+    data = request.get_json() or {}
+    conn = get_db()
+
+    # Rename if requested
+    new_name = data.get("new_name", "").strip()
+    final_name = name
+    if new_name:
+        new_name = sanitize_category_name(new_name)
+        if new_name != name:
+            if new_name in DEFAULT_CATEGORIES:
+                return jsonify({"error": f"'{new_name}' is a built-in category."}), 409
+            ok = rename_custom_category(conn, name, new_name)
+            if not ok:
+                return jsonify({"error": f"Category '{name}' not found."}), 404
+            final_name = new_name
+
+    # Update color if provided
+    if "color" in data:
+        conn.execute(
+            "UPDATE custom_categories SET color=? WHERE name=?",
+            (data["color"], final_name),
+        )
+        conn.commit()
+
+    # Replace extension list if provided
+    if "extensions" in data:
+        set_extensions_for_category(conn, final_name, data["extensions"])
+
+    cats = get_custom_categories(conn)
+    updated = next((c for c in cats if c["name"] == final_name), None)
+    return jsonify({"success": True, "category": updated})
+
+
+@app.route("/api/categories/<string:name>", methods=["DELETE"])
+def api_delete_category(name: str):
+    """Delete a custom category and all its extension mappings."""
+    from src.database import delete_custom_category
+
+    if name in DEFAULT_CATEGORIES:
+        return jsonify({"error": "Cannot delete a built-in category."}), 403
+
+    conn = get_db()
+    ok = delete_custom_category(conn, name)
+    if not ok:
+        return jsonify({"error": f"Category '{name}' not found."}), 404
+    return jsonify({"success": True, "deleted": name})
 
 
 # ===========================================================================

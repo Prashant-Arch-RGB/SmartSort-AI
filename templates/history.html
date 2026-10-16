@@ -117,7 +117,7 @@
                   </td>
                   <td onclick="event.stopPropagation()">
                     <div class="action-cell">
-                      <button class="btn btn-sm btn-ghost" onclick="showUndoForBatch({{ row.batch_id }})">
+                      <button class="btn btn-sm btn-ghost" onclick="undoBatch({{ row.batch_id }})">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <polyline points="1 4 1 10 7 10"/>
                           <path d="M3.51 15a9 9 0 101.85-4.36L1 10"/>
@@ -179,7 +179,7 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Op ID</th>
+                  <th>S. No.</th>
                   <th>Filename</th>
                   <th>Moved From</th>
                   <th>Moved To</th>
@@ -190,7 +190,7 @@
               <tbody>
                 {% for row in undo_rows %}
                 <tr>
-                  <td class="mono">{{ row.op_id }}</td>
+                  <td class="mono">{{ loop.index }}</td>
                   <td>{{ row.filename }}</td>
                   <td class="path-cell" title="{{ row.moved_from }}">{{ row.moved_from }}</td>
                   <td class="path-cell" title="{{ row.moved_to }}">{{ row.moved_to }}</td>
@@ -299,7 +299,7 @@ function loadBatchDetail(batchId, row) {
   html += '<div class="detail-undo-header"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 101.85-4.36L1 10"/></svg><strong>Undo This Operation</strong></div>';
   html += '<p class="detail-sub">This will revert the last organization changes and move the files back to their original locations.</p>';
   html += '</div>';
-  html += '<button class="btn btn-primary btn-block mt-2" onclick="showUndoForBatch(' + batchId + ')">';
+  html += '<button class="btn btn-primary btn-block mt-2" onclick="undoBatch(' + batchId + ')">';
   html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 101.85-4.36L1 10"/></svg> Undo Operation</button>';
 
   html += '<div class="detail-divider mt-3"></div>';
@@ -316,6 +316,41 @@ function loadBatchDetail(batchId, row) {
 function showUndoForBatch(batchId) {
   switchTab('undo');
   showToast('Undo view for batch #' + batchId, 'info');
+}
+
+function undoBatch(batchId) {
+  if (!confirm('Undo all file moves in batch #' + batchId + '? Files will be moved back to their original locations.')) return;
+
+  fetch('/api/history/' + batchId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var ops = (data.ops || []).filter(function(op) {
+        return op.op_id != null && op.status === 'moved' && !op.undone;
+      });
+      if (!ops.length) { showToast('No undoable operations found for this batch.', 'error'); return; }
+
+      var promises = ops.map(function(op) {
+        return fetch('/api/undo', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ op_id: op.op_id })
+        }).then(function(r) { return r.json(); });
+      });
+
+      Promise.all(promises).then(function(results) {
+        var failed = results.filter(function(d) { return d.error; });
+        var succeeded = results.filter(function(d) { return d.success; });
+        if (failed.length === 0) {
+          showToast('Undone ' + succeeded.length + ' operation(s) successfully.', 'success');
+        } else if (succeeded.length > 0) {
+          showToast(succeeded.length + ' undone, ' + failed.length + ' failed.', 'error');
+        } else {
+          showToast('Undo failed: ' + failed[0].error, 'error');
+        }
+        setTimeout(function() { location.reload(); }, 1400);
+      });
+    })
+    .catch(function(e) { showToast('Failed to fetch batch details: ' + e, 'error'); });
 }
 
 function undoOperation(opId) {

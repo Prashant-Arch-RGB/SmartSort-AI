@@ -52,19 +52,40 @@ def generate_plan(
     dest_root: Path,
     source_root: Path,
     overrides: Optional[Dict[str, str]] = None,
+    custom_ext_map: Optional[Dict[str, str]] = None,
 ) -> List[Proposal]:
     """
     Build a list of Proposal objects for moving files.
 
-    Files are placed at: dest_root / category / filename
+    Files are placed at: dest_root / category / filename.
     Duplicate filenames at the destination get a numeric suffix.
+
+    Category resolution order (per file)
+    -------------------------------------
+    1. ``overrides`` dict (user correction in the current session).
+    2. ``custom_ext_map`` (user-defined extension → category rules).
+    3. Built-in ``EXTENSION_MAP`` / classifier result on the record.
+    4. ``"Other"`` fallback.
     """
+    from src.config import resolve_category
+
     overrides = overrides or {}
+    custom_ext_map = custom_ext_map or {}
     proposals: List[Proposal] = []
     seen_dsts: Dict[str, int] = {}  # dst_path_str -> count (for dedup)
 
     for rec in records:
-        category = overrides.get(str(rec.filepath), rec.category) or "Other"
+        # 1. Manual session override takes top priority
+        if str(rec.filepath) in overrides:
+            category = overrides[str(rec.filepath)]
+        else:
+            # 2+3+4: custom rule → built-in → "Other"
+            category = resolve_category(rec.extension, custom_ext_map)
+            # If the classifier produced a result and no custom/built-in rule
+            # matched, keep the classifier's answer (it may be more specific).
+            if category == "Other" and rec.category and rec.category != "Other":
+                category = rec.category
+
         dst_dir = dest_root / category
 
         # Build a unique destination filename

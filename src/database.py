@@ -81,6 +81,21 @@ CREATE TABLE IF NOT EXISTS feedback (
     extracted_text TEXT NOT NULL DEFAULT '',
     created_at   TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS custom_categories (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT    NOT NULL UNIQUE,
+    color      TEXT    NOT NULL DEFAULT '#6366f1',
+    created_at TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS category_extensions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ext         TEXT    NOT NULL UNIQUE,
+    category    TEXT    NOT NULL,
+    FOREIGN KEY (category) REFERENCES custom_categories(name)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
 """
 
 
@@ -243,3 +258,114 @@ def get_all_feedback(conn: sqlite3.Connection) -> list:
         "SELECT filename, category, extracted_text FROM feedback"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Custom-category helpers
+# ---------------------------------------------------------------------------
+
+def get_custom_categories(conn: sqlite3.Connection) -> list:
+    """Return all custom categories ordered by name.
+
+    Each row: {id, name, color, created_at, extensions: [str, ...]}
+    """
+    cats = conn.execute(
+        "SELECT id, name, color, created_at FROM custom_categories ORDER BY name"
+    ).fetchall()
+    result = []
+    for cat in cats:
+        exts = conn.execute(
+            "SELECT ext FROM category_extensions WHERE category=? ORDER BY ext",
+            (cat["name"],),
+        ).fetchall()
+        result.append({
+            "id":         cat["id"],
+            "name":       cat["name"],
+            "color":      cat["color"],
+            "created_at": cat["created_at"],
+            "extensions": [r["ext"] for r in exts],
+        })
+    return result
+
+
+def add_custom_category(conn: sqlite3.Connection,
+                        name: str,
+                        color: str = "#6366f1") -> int:
+    """Insert a new custom category.
+
+    Raises sqlite3.IntegrityError if the name already exists.
+    """
+    cur = conn.execute(
+        "INSERT INTO custom_categories (name, color, created_at) VALUES (?, ?, ?)",
+        (name.strip(), color, datetime.now().isoformat(timespec="seconds")),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def rename_custom_category(conn: sqlite3.Connection,
+                           old_name: str,
+                           new_name: str) -> bool:
+    """Rename a custom category (cascades to category_extensions automatically)."""
+    conn.execute(
+        "UPDATE custom_categories SET name=? WHERE name=?",
+        (new_name.strip(), old_name.strip()),
+    )
+    conn.commit()
+    changed = conn.execute("SELECT changes()").fetchone()[0]
+    return changed > 0
+
+
+def delete_custom_category(conn: sqlite3.Connection, name: str) -> bool:
+    """Delete a custom category and all its extension mappings (ON DELETE CASCADE)."""
+    conn.execute("DELETE FROM custom_categories WHERE name=?", (name.strip(),))
+    conn.commit()
+    changed = conn.execute("SELECT changes()").fetchone()[0]
+    return changed > 0
+
+
+# ---------------------------------------------------------------------------
+# Extension-mapping helpers
+# ---------------------------------------------------------------------------
+
+def set_extensions_for_category(conn: sqlite3.Connection,
+                                 category: str,
+                                 extensions: list) -> None:
+    """Replace the full extension list for *category*.
+
+    - Strips, lowercases, and ensures each ext starts with '.'.
+    - Each extension can only belong to one category (UNIQUE constraint).
+      Existing mappings from *other* categories are removed first to avoid
+      conflicts (last-write wins).
+    - Extensions not starting with a letter/digit after the dot are skipped.
+    """
+    import re
+    clean: list[str] = []
+    for raw in extensions:
+        ext = raw.strip().lower()
+        if not ext.startswith("."):
+            ext = "." + ext
+        # Reject obviously invalid extensions (empty or just a dot)
+        if re.fullmatch(r'\.[a-z0-9][a-z0-9+\-]*', ext):
+            clean.append(ext)
+
+    conn.execute("DELETE FROM category_extensions WHERE category=?", (category,))
+    for ext in clean:
+        # Remove from any other category first (conflict resolution: last save wins)
+        conn.execute(
+            "DELETE FROM category_extensions WHERE ext=? AND category!=?",
+            (ext, category),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO category_extensions (ext, category) VALUES (?, ?)",
+            (ext, category),
+        )
+    conn.commit()
+
+
+def get_custom_ext_map(conn: sqlite3.Connection) -> dict:
+    """Return {'.ext': 'CategoryName'} for all custom-mapped extensions (lowercase keys)."""
+    rows = conn.execute(
+        "SELECT ext, category FROM category_extensions"
+    ).fetchall()
+    return {r["ext"]: r["category"] for r in rows}
