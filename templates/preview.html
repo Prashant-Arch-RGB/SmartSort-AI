@@ -35,7 +35,7 @@
   {% else %}
 
   <!-- Destination + filters row -->
-  <div class="card mt-4">
+  <div class="card mt-4 card-overflow-visible">
     <div class="filters-bar">
       <!-- Destination folder -->
       <div class="dest-folder-group">
@@ -75,7 +75,7 @@
               <button class="dropdown-arrow" onclick="toggleDropdown('catDropdown')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <div class="dropdown-panel" id="catDropdown" style="display:none;">
+              <div class="dropdown-panel" id="catDropdown" style="display:none;" onclick="event.stopPropagation()">
                 <label class="dropdown-item"><input type="checkbox" value="__all__" onchange="selectAllFilter('cat', this)"> Select all</label>
                 {% for cat in all_categories %}
                 <label class="dropdown-item"><input type="checkbox" class="cat-filter-cb" value="{{ cat }}" onchange="updateFilter('cat')"> {{ cat }}</label>
@@ -94,7 +94,7 @@
               <button class="dropdown-arrow" onclick="toggleDropdown('typeDropdown')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
-              <div class="dropdown-panel" id="typeDropdown" style="display:none;">
+              <div class="dropdown-panel" id="typeDropdown" style="display:none;" onclick="event.stopPropagation()">
                 <label class="dropdown-item"><input type="checkbox" value="__all__" onchange="selectAllFilter('type', this)"> Select all</label>
                 {% for ext in all_extensions %}
                 <label class="dropdown-item"><input type="checkbox" class="type-filter-cb" value="{{ ext }}" onchange="updateFilter('type')"> {{ ext }}</label>
@@ -107,9 +107,9 @@
           <div class="filter-control">
             <div class="filter-control-label">Confidence Threshold</div>
             <select class="form-select" id="confFilter" onchange="applyFilters()">
-              <option value="all">All files</option>
+              <option value="all" selected>All files</option>
               <option value="high">High (≥80%)</option>
-              <option value="medium" selected>Medium (≥70%)</option>
+              <option value="medium">Medium (≥70%)</option>
               <option value="low">Low (≥55%)</option>
               <option value="review">Needs Review (&lt;55%)</option>
             </select>

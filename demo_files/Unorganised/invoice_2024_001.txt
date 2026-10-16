@@ -1,0 +1,5 @@
+INVOICE #2024-001
+Vendor: Acme Corp
+Amount Due: $1,250.00
+Payment Terms: Net 30
+Description: Software license renewal

@@ -1,0 +1,6 @@
+Bank Statement - Account: 1234-5678
+Period: January 2024
+Opening Balance: $5,000.00
+Deposits: $3,200.00
+Withdrawals: $2,150.00
+Closing Balance: $6,050.00

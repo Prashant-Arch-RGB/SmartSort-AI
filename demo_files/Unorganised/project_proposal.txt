@@ -1,0 +1,5 @@
+Project Proposal: Website Redesign
+Client: BigCo Inc
+Timeline: 12 weeks
+Deliverables: wireframes, design mockups, development, testing
+Budget: $45,000

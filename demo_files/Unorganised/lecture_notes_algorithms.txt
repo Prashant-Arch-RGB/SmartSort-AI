@@ -1,0 +1,4 @@
+Lecture notes: Introduction to Algorithms
+Chapter 1: Sorting algorithms — bubble sort, merge sort, quicksort
+Chapter 2: Searching — binary search, hash tables
+Assignment due next week: implement merge sort in Python.

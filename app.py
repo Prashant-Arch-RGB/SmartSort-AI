@@ -541,6 +541,7 @@ def api_organize():
         "failed": result.failed,
         "dry_run": dry_run,
         "details": result.details,
+        "plan": plan_data,
     })
 
 

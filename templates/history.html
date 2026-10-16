@@ -79,7 +79,6 @@
           <table class="data-table" id="historyTable">
             <thead>
               <tr>
-                <th width="32px"><input type="checkbox" id="histSelectAll"></th>
                 <th>Date &amp; Time</th>
                 <th>Operation</th>
                 <th>Files Affected</th>
@@ -92,7 +91,6 @@
                 {% for row in history_rows %}
                 <tr class="history-row" data-batch-id="{{ row.batch_id }}" data-status="{{ row.status }}"
                     data-folder="{{ row.folder_full }}" onclick="selectHistoryRow(this)">
-                  <td onclick="event.stopPropagation()"><input type="checkbox" class="row-select-hist"></td>
                   <td class="date-cell">{{ row.date }}</td>
                   <td>
                     <div class="op-cell">
@@ -110,12 +108,9 @@
                   <td>{{ row.files_affected }} files</td>
                   <td>
                     {% if row.status == 'done' %}
-                    <span class="badge badge-success">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      Completed
-                    </span>
+                    <span class="badge badge-success">success</span>
                     {% elif row.status == 'running' %}
-                    <span class="badge badge-warning">⚙ Running</span>
+                    <span class="badge badge-warning">running</span>
                     {% else %}
                     <span class="badge badge-info">{{ row.status }}</span>
                     {% endif %}
@@ -140,7 +135,7 @@
                 {% endfor %}
               {% else %}
               <tr>
-                <td colspan="6" class="empty-state-cell">
+                <td colspan="5" class="empty-state-cell">
                   <div class="empty-state">
                     <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
                       <polyline points="1 4 1 10 7 10"/>
@@ -230,7 +225,7 @@
   </div><!-- /col-main -->
 
   <!-- ── Right panel: Operation Details ─────────────────────── -->
-  <div class="col-aside">
+  <div class="col-aside col-aside-history">
     <div class="card" id="opDetailCard">
       <div class="card-header-simple">
         <span class="op-detail-title">Operation Details</span>
