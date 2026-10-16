@@ -95,87 +95,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /* ============================================================
-   SIZE SLIDER — Unlimited endpoint
-   ============================================================
-   Slider range: 0 … 101
-     0    →  1 MB
-     1–99 →  logarithmic scale 1 MB–5 GB
-     100  →  5 GB  (max finite)
-     101  →  Unlimited (special sentinel)
-   The hidden input #maxSizeValue stores:
-     - A numeric MB value for positions 0–100
-     - The string "unlimited" for position 101
-   ============================================================ */
-
-/** Convert slider position (0–101) → MB value or "unlimited" */
-function sliderToMb(pos) {
-  pos = parseInt(pos, 10);
-  if (pos >= 101) return 'unlimited';
-  if (pos <= 0) return 1;
-  // Linear between 1 MB (pos=0) and 5120 MB/5 GB (pos=100)
-  return Math.round(1 + (pos / 100) * (5120 - 1));
-}
-
-/** Convert MB value → slider position (0–100). "unlimited" → 101. */
-function mbToSlider(mb) {
-  if (mb === null || mb === undefined || mb === 'unlimited') return 101;
-  mb = parseFloat(mb);
-  if (isNaN(mb) || mb <= 1) return 0;
-  if (mb >= 5120) return 100;
-  return Math.round((mb - 1) / (5120 - 1) * 100);
-}
-
-/** Format MB value to readable label */
-function formatMbLabel(mb) {
-  if (mb === 'unlimited' || mb === null) return '∞ Unlimited';
-  mb = parseFloat(mb);
-  if (mb < 1024) return mb + ' MB';
-  return (mb / 1024).toFixed(1) + ' GB';
-}
-
-/**
- * Called by the slider's oninput handler.
- * Updates the gradient fill, the bubble label, and the hidden value.
- */
-function updateSizeSlider(pos) {
-  pos = parseInt(pos, 10);
-  var slider   = document.getElementById('sizeSlider');
-  var bubble   = document.getElementById('sliderBubble');
-  var hidden   = document.getElementById('maxSizeValue');
-
-  if (!slider || !bubble || !hidden) return;
-
-  var mb = sliderToMb(pos);
-  var label = formatMbLabel(mb);
-
-  bubble.textContent = label;
-
-  if (mb === 'unlimited') {
-    hidden.value = 'unlimited';
-    bubble.style.background = '#a855f7';   // purple for unlimited
-  } else {
-    hidden.value = mb;
-    bubble.style.background = '';          // reset to CSS default (accent)
-  }
-
-  // Update slider track fill (clamp visual to 0–100 range)
-  var visualPct = Math.min(pos, 100) + '%';
-  slider.style.background =
-    'linear-gradient(to right, var(--accent) 0%, var(--accent) ' +
-    visualPct + ', var(--border-light) ' + visualPct + ', var(--border-light) 100%)';
-
-  // Position the bubble roughly above the thumb
-  var thumbPct = pos / 101;
-  var trackWidth = slider.offsetWidth || 300;
-  var bubbleWidth = bubble.offsetWidth || 60;
-  var leftPx = thumbPct * trackWidth - bubbleWidth / 2;
-  leftPx = Math.max(0, Math.min(leftPx, trackWidth - bubbleWidth));
-  bubble.style.left = leftPx + 'px';
-  bubble.style.position = 'absolute';
-  // The labels row already has position:relative via CSS
-}
-
-/* ============================================================
    SCAN EXECUTION
    ============================================================ */
 
@@ -346,15 +265,6 @@ function toggleCheckbox(el) {
     html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   }
 })();
-
-/* ============================================================
-   SLIDER GRADIENT UPDATE (on resize / init)
-   ============================================================ */
-
-window.addEventListener('resize', function () {
-  var slider = document.getElementById('sizeSlider');
-  if (slider) updateSizeSlider(slider.value);
-});
 
 /* ============================================================
    NATIVE FOLDER BROWSER

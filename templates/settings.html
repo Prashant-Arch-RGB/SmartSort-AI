@@ -172,19 +172,18 @@
       </div>
     </div>
     <div class="mt-3" style="padding: 0 4px;">
-      <!-- Server-rendered current value label (used by tests and as initial state) -->
-      <div id="maxSizeCurrentLabel" class="form-hint mb-2" style="font-size:13px; color: var(--text-secondary);">
-        Current: <strong id="maxSizeLabelText">{{ max_size_display }}</strong>
-      </div>
-      <div class="slider-container" style="position:relative;">
-        <input type="range" id="settingsSizeSlider" class="range-slider" min="0" max="101" step="1"
-               value="{% if max_size_val is none %}101{% else %}{{ [0, [100, ((max_size_val - 1) / (5120 - 1) * 100)|int]|min]|max }}{% endif %}"
-               oninput="updateSettingsSizeSlider(this.value)" />
-        <div class="slider-labels">
-          <span>1 MB</span>
-          <div class="slider-bubble" id="settingsSliderBubble">{{ max_size_display }}</div>
-          <span>&#8734;</span>
-        </div>
+      <div class="max-size-input-row">
+        <input type="number" id="settingsMaxSizeMbInput" class="form-input max-size-number-input"
+               min="1" max="999999" step="1" placeholder="e.g. 50"
+               {% if max_size_val is not none %}value="{{ max_size_val|int }}"{% endif %}
+               {% if max_size_val is none %}disabled{% endif %} />
+        <span class="max-size-unit">MB</span>
+        <label class="max-size-unlimited-label">
+          <input type="checkbox" id="settingsMaxSizeUnlimitedCheck"
+                 onchange="onSettingsUnlimitedToggle(this.checked)"
+                 {% if max_size_val is none %}checked{% endif %} />
+          Unlimited
+        </label>
       </div>
       <input type="hidden" id="settingsMaxSizeValue" value="{{ 'unlimited' if max_size_val is none else max_size_val|int }}" />
     </div>
@@ -307,40 +306,27 @@ function openFolderModalForDefaultDest() {
   });
 }
 
-function updateSettingsSizeSlider(pos) {
-  pos = parseInt(pos, 10);
-  var bubble  = document.getElementById('settingsSliderBubble');
-  var hidden  = document.getElementById('settingsMaxSizeValue');
-  var label   = document.getElementById('maxSizeLabelText');
-
-  // Reuse the shared sliderToMb / formatMbLabel functions from app.js
-  var mb = sliderToMb(pos);
-  var display = formatMbLabel(mb);
-
-  if (bubble) bubble.textContent = display;
-  if (label)  label.textContent  = display;
-  if (hidden) hidden.value = (mb === 'unlimited') ? 'unlimited' : mb;
-
-  if (mb === 'unlimited') {
-    if (bubble) bubble.style.background = '#a855f7';
+function onSettingsUnlimitedToggle(checked) {
+  var numInput = document.getElementById('settingsMaxSizeMbInput');
+  var hidden   = document.getElementById('settingsMaxSizeValue');
+  if (checked) {
+    if (numInput) numInput.disabled = true;
+    if (hidden)   hidden.value = 'unlimited';
   } else {
-    if (bubble) bubble.style.background = '';
-  }
-
-  // Update track fill
-  var slider = document.getElementById('settingsSizeSlider');
-  if (slider) {
-    var visualPct = Math.min(pos, 100) + '%';
-    slider.style.background =
-      'linear-gradient(to right, var(--accent) 0%, var(--accent) ' +
-      visualPct + ', var(--border-light) ' + visualPct + ', var(--border-light) 100%)';
+    if (numInput) { numInput.disabled = false; numInput.focus(); }
+    if (hidden)   hidden.value = numInput ? (numInput.value || '50') : '50';
   }
 }
 
-// Initialize settings slider on page load
+// Keep hidden value in sync as user types
 document.addEventListener('DOMContentLoaded', function() {
-  var slider = document.getElementById('settingsSizeSlider');
-  if (slider) updateSettingsSizeSlider(slider.value);
+  var numInput = document.getElementById('settingsMaxSizeMbInput');
+  var hidden   = document.getElementById('settingsMaxSizeValue');
+  if (numInput) {
+    numInput.addEventListener('input', function() {
+      if (hidden) hidden.value = numInput.value || '50';
+    });
+  }
 });
 
 function saveSettings() {

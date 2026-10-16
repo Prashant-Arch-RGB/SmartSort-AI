@@ -77,15 +77,16 @@
           </svg>
           <span>Maximum file size</span>
         </div>
-        <p class="form-section-sub">Only scan files up to the selected size. Larger files will be skipped.</p>
+        <p class="form-section-sub">Only scan files up to this size. Larger files will be skipped during text extraction.</p>
 
-        <div class="slider-container" id="sizeSliderContainer">
-          <input type="range" id="sizeSlider" class="range-slider" min="0" max="101" step="1" value="50" oninput="updateSizeSlider(this.value)" />
-          <div class="slider-labels">
-            <span>1 MB</span>
-            <div class="slider-bubble" id="sliderBubble">500 MB</div>
-            <span>∞</span>
-          </div>
+        <div class="max-size-input-row mt-2">
+          <input type="number" id="maxSizeMbInput" class="form-input max-size-number-input"
+                 min="1" max="999999" step="1" placeholder="e.g. 500" />
+          <span class="max-size-unit">MB</span>
+          <label class="max-size-unlimited-label">
+            <input type="checkbox" id="maxSizeUnlimitedCheck" onchange="onScanUnlimitedToggle(this.checked)" />
+            Unlimited
+          </label>
         </div>
         <input type="hidden" id="maxSizeValue" value="500" />
       </div>
@@ -247,21 +248,20 @@
 </div><!-- /page-grid -->
 
 <script>
-// Initialize slider
 (function() {
   var rawVal = '{{ settings.get("max_file_size_mb", "500") }}';
-  var sliderVal;
+  var numInput   = document.getElementById('maxSizeMbInput');
+  var checkUnlim = document.getElementById('maxSizeUnlimitedCheck');
+  var hidden     = document.getElementById('maxSizeValue');
+
   if (rawVal === 'unlimited') {
-    sliderVal = 101;
+    if (checkUnlim) checkUnlim.checked = true;
+    if (numInput)   numInput.disabled  = true;
+    if (hidden)     hidden.value       = 'unlimited';
   } else {
     var mb = parseFloat(rawVal) || 500;
-    // Map MB to slider 0-100: 1 MB → 0, 5000 MB → 100
-    sliderVal = Math.round(Math.min(100, Math.max(0, (mb - 1) / (5000 - 1) * 100)));
-  }
-  var slider = document.getElementById('sizeSlider');
-  if (slider) {
-    slider.value = sliderVal;
-    updateSizeSlider(sliderVal);
+    if (numInput) numInput.value = Math.round(mb);
+    if (hidden)   hidden.value   = Math.round(mb);
   }
 
   // Pre-fill folder from URL
@@ -270,7 +270,26 @@
   if (folderParam) {
     document.getElementById('folderPath').value = folderParam;
   }
+
+  // Keep hidden value in sync as user types
+  if (numInput) {
+    numInput.addEventListener('input', function() {
+      if (hidden) hidden.value = numInput.value || '500';
+    });
+  }
 })();
+
+function onScanUnlimitedToggle(checked) {
+  var numInput = document.getElementById('maxSizeMbInput');
+  var hidden   = document.getElementById('maxSizeValue');
+  if (checked) {
+    if (numInput) numInput.disabled = true;
+    if (hidden)   hidden.value = 'unlimited';
+  } else {
+    if (numInput) { numInput.disabled = false; numInput.focus(); }
+    if (hidden)   hidden.value = numInput ? (numInput.value || '500') : '500';
+  }
+}
 
 function openFolderModalForScanPage() {
   browseFolder(function(path) {

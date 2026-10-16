@@ -14,9 +14,10 @@
 | **Correction Panel** | Correct miscategorized files and save them for model retraining |
 | **History & Undo** | Every file move is logged; move any file back to its original location |
 | **Duplicate Detection** | Identifies duplicate files during scan |
+| **Custom Categories** | Create, rename, and delete your own categories; map any file extension to a custom category; custom rules take priority over built-in ones |
 | **Folder Browser** | Native OS folder-picker dialog (pywebview) in desktop mode; tkinter fallback in browser mode |
-| **Settings** | Dark/Light/System theme, default destination folder, excluded extensions/subfolders, Max Size slider with Unlimited mode, Retrain Model, Clear History |
-| **Max Size = Unlimited** | Drag the slider fully right → sets max size to Unlimited; the backend genuinely removes the size restriction |
+| **Settings** | Dark/Light/System theme, default destination folder, excluded extensions/subfolders, Max Size input with Unlimited mode, Retrain Model, Clear History |
+| **Max Size = Unlimited** | Type a value in MB or tick "Unlimited" — the backend genuinely removes the size restriction |
 
 ---
 
@@ -68,20 +69,20 @@ run.bat
 
 ## Max Size — Unlimited Mode
 
-On both the **Scan** page and the **Settings** page, a range slider controls the maximum file size for text extraction.
+On both the **Scan** page and the **Settings** page, a number input controls the maximum file size for text extraction.
 
-- **Positions 0–100** map to 1 MB through 5 GB.
-- **Position 101 (rightmost endpoint)** sets Max Size to **Unlimited** (∞).
-  - The slider bubble turns purple and shows `∞ Unlimited`.
+- Type any value in **MB** (e.g. `500`) to set a finite limit.
+- Tick the **Unlimited** checkbox to remove the restriction entirely.
+  - The number input is disabled while Unlimited is checked.
   - The API payload sends `null` for `max_size`, which the backend interprets as no restriction.
   - The setting is stored as the string `"unlimited"` in SQLite.
-  - On next load the slider initializes back to position 101.
+  - On next load the checkbox is pre-checked and the input is disabled.
 
 **Acceptance test:**
 
-1. Go to Settings → drag the Max Size slider all the way right.
+1. Go to Settings → tick the **Unlimited** checkbox.
 2. Click **Save Settings** — observe the success toast.
-3. Reload the page — the slider should still be at the rightmost (Unlimited) position.
+3. Reload the page — the Unlimited checkbox should still be checked.
 4. Scan any folder — files of any size will be processed (text extraction not skipped).
 
 ---
@@ -120,15 +121,12 @@ SmartSort-AI/
 ├── data/
 │   └── training_data.csv     ← Training data (text + category pairs)
 ├── scripts/
-│   ├── train_model.py        ← CLI: train the classifier
-│   └── create_demo_files.py  ← CLI: create demo files for testing
+│   ├── train_model.py         ← CLI: train the classifier
+│   └── create_demo_files.pyw  ← GUI script: create demo files for testing
 ├── tests/
-│   ├── test_flask_app.py     ← Flask page + API + Max Size tests (22 tests)
-│   ├── test_classifier.py    ← Classifier unit tests
-│   ├── test_database.py      ← Database CRUD tests
-│   ├── test_duplicates.py    ← Duplicate detection tests
-│   ├── test_organizer.py     ← Organizer / file-move tests
-│   └── test_scanner.py       ← Scanner tests
+│   ├── test_flask_app.py          ← Flask page + API + Max Size tests (22 tests)
+│   ├── test_custom_categories.py  ← Custom categories data model + plan tests (33 tests)
+│   └── test_organizer.py          ← Organizer / file-move tests
 ├── demo_files/               ← Sample files for testing scans
 ├── LICENSE
 ├── requirements.txt
@@ -157,6 +155,10 @@ SmartSort-AI/
 | `GET` | `/api/search?q=` | Search files/categories |
 | `GET` | `/api/status` | System status (model, OCR, scan state) |
 | `POST` | `/api/browse_folder` | Open native OS folder-picker dialog |
+| `GET` | `/api/categories` | List all custom categories with their extensions |
+| `POST` | `/api/categories` | Create a new custom category |
+| `PUT` | `/api/categories/<name>` | Update a custom category (name, color, extensions) |
+| `DELETE` | `/api/categories/<name>` | Delete a custom category and its extension mappings |
 
 ### `/api/settings` — Max Size payload
 
@@ -176,11 +178,13 @@ python -m pytest tests/test_flask_app.py -v
 
 Expected: **22 passed**
 
-To run all tests:
+To run the full suite (55 tests across all test files):
 
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/test_flask_app.py tests/test_custom_categories.py -v
 ```
+
+Expected: **55 passed**
 
 ---
 
